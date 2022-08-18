@@ -1,0 +1,761 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+## Nx
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(tidyr)
+library(DataCombine)
+library(tidyverse)
+library(pheatmap)
+library(forcats)
+Nx <- c('N10', 'N20','N30','N40','N50')
+all_transcripts <- c(3248,2242,1561,1006,631)
+longest_isoform <- c(2625,1481,787,508,387)
+nx_data<-data.frame(Nx,all_transcripts,longest_isoform)
+nx_data <- melt(nx_data, id.vars="Nx")
+
+ggplot(nx_data, aes(x= Nx, y = value, col = variable)) +
+  geom_histogram(stat = "identity", position="dodge", fill="gray88")  + theme_get()+ xlab("Nx-arvo")+
+  ylab("Emäsparia") +  theme(legend.title=element_blank()) +
+  scale_color_manual(labels = c("Kaikki transkriptit", "Pisin isoformi"), values = c("darkorange2", "mediumslateblue")) 
+
+```
+##Load Trinotate
+```{r load trinotate}
+Trinotate <- read.delim("~/Desktop/Gradu/190721_trinotate/Trinotate.csv", header=FALSE, comment.char="#")
+```
+
+
+##BLASTX GO-termit
+```{r}
+
+GO_terms <- 
+  Trinotate %>% 
+  as_tibble() %>% 
+  select(V1, V13) %>%
+  separate_rows(V13, sep = "\`") %>% 
+  separate(V13, into = c("GO", "GO_class", "description"), sep = "\\^", remove = F) %>% 
+  distinct()
+
+
+#Visualisation of biological processes (values over 1000)
+GO_terms %>%
+  group_by(V13, GO, GO_class, description) %>% 
+  summarise(n = n()) %>%
+  ungroup() %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "biological_process") %>%
+  arrange(-n) %>%
+  mutate(GO = factor(GO, unique(GO))) %>%
+  filter(n > 1000) %>%
+  ggplot(aes(n, fct_reorder(description,n))) +
+  geom_col() +
+  facet_wrap(~ GO_class, scales = "free", ncol = 1)
+
+#Visualisation of cellular component (values over 1000)
+GO_terms %>%
+  group_by(V13, GO, GO_class, description) %>% 
+  summarise(n = n()) %>%
+  ungroup() %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "cellular_component") %>%
+  arrange(-n) %>%
+  mutate(GO = factor(GO, unique(GO))) %>%
+  filter(n > 1000) %>%
+  ggplot(aes(n, fct_reorder(description,n))) +
+  geom_col() +
+  facet_wrap(~ GO_class, scales = "free", ncol = 1)
+
+
+#Visualisation of molecular function (values over 1000)
+GO_terms %>%
+  group_by(V13, GO, GO_class, description) %>% 
+  summarise(n = n()) %>%
+  ungroup() %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "molecular_function") %>%
+  arrange(-n) %>%
+  mutate(GO = factor(GO, unique(GO))) %>%
+  filter(n > 1000) %>%
+  ggplot(aes(n, fct_reorder(description,n))) +
+  geom_col() +
+  facet_wrap(~ GO_class, scales = "free", ncol = 1)
+
+GO_terms_filt <- 
+  GO_terms %>%
+  filter(GO != ".") %>%
+  select(V1) %>%
+  group_by(V1) %>%
+  summarise(count=n())
+
+GO_biol_trancript  <-
+GO_terms %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "biological_process") %>%
+  select(V1, description) %>%
+  group_by(V1) %>%
+  summarise(count=n())
+
+#annotaatio 147498 ja yhteensä 486815 transkriptiä
+
+GO_biol  <-
+GO_terms %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "biological_process") %>%
+  select(V1, description) %>%
+  group_by(description) %>%
+  summarise(count=n())
+  
+GO_cellu_transcript  <-
+GO_terms %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "cellular_component") %>%
+  select(V1, description) %>%
+  group_by(V1) %>%
+  summarise(count=n())
+
+GO_cellu  <-
+GO_terms %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "cellular_component") %>%
+  select(V1, description) %>%
+  group_by(description) %>%
+  summarise(count=n())
+
+GO_molecul_transcript <-
+GO_terms %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "molecular_function") %>%
+  select(V1, description) %>%
+  group_by(V1) %>%
+  summarise(count=n())
+  
+GO_molecul <-
+GO_terms %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "molecular_function") %>%
+  select(V1, description) %>%
+  group_by(description) %>%
+  summarise(count=n())
+
+
+
+```
+##Pfam GO-termit
+```{r pfam GO-terms}
+
+GO_terms_pfam <- 
+  Trinotate %>% 
+  as_tibble() %>% 
+  select(V2, V8, V14) %>%
+  separate_rows(V14, sep = "\`") %>% 
+  separate(V14, into = c("GO", "GO_class", "description"), sep = "\\^", remove = F) %>%
+  distinct()
+   
+#Visualisation of biological processes (values over 1000)
+GO_terms_pfam %>%
+  group_by(V14, GO, GO_class, description) %>% 
+  summarise(n = n()) %>%
+  ungroup() %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "biological_process") %>%
+  arrange(-n) %>%
+  mutate(GO = factor(GO, unique(GO))) %>%
+  filter(n > 400) %>%
+  ggplot(aes(n, fct_reorder(description,n))) +
+  geom_col() +
+  facet_wrap(~ GO_class, scales = "free", ncol = 1)
+
+#Visualisation of cellular component (values over 1000)
+GO_terms_pfam %>%
+  group_by(V14, GO, GO_class, description) %>% 
+  summarise(n = n()) %>%
+  ungroup() %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "cellular_component") %>%
+  arrange(-n) %>%
+  mutate(GO = factor(GO, unique(GO))) %>%
+  filter(n > 400) %>%
+  ggplot(aes(n, fct_reorder(description,n))) +
+  geom_col() +
+  facet_wrap(~ GO_class, scales = "free", ncol = 1)
+
+
+#Visualisation of molecular function (values over 1000)
+GO_terms_pfam %>%
+  group_by(V14, GO, GO_class, description) %>% 
+  summarise(n = n()) %>%
+  ungroup() %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "molecular_function") %>%
+  arrange(-n) %>%
+  mutate(GO = factor(GO, unique(GO))) %>%
+  filter(n > 400) %>%
+  ggplot(aes(n, fct_reorder(description,n))) +
+  geom_col() +
+  facet_wrap(~ GO_class, scales = "free", ncol = 1)
+
+GO_terms_pfam_filt <- 
+  GO_terms_pfam %>%
+  filter(GO != ".") %>%
+  select(V2) %>%
+  group_by(V2) %>%
+  summarise(count=n())
+
+GO_pfam_biol_trancript  <-
+GO_terms_pfam %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "biological_process") %>%
+  select(V2, description) %>%
+  group_by(V2) %>%
+  summarise(count=n())
+
+GO_pfam_biol  <-
+GO_terms_pfam %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "biological_process") %>%
+  select(V2, description) %>%
+  group_by(description) %>%
+  summarise(count=n())
+
+GO_pfam_cellu_transcript  <-
+GO_terms_pfam %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "cellular_component") %>%
+  select(V2, description) %>%
+  group_by(V2) %>%
+  summarise(count=n())
+
+GO_pfam_cellu  <-
+GO_terms_pfam %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "cellular_component") %>%
+  select(V2, description) %>%
+  group_by(description) %>%
+  summarise(count=n())
+
+GO_pfam_molecul_transcript <-
+GO_terms_pfam %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "molecular_function") %>%
+  select(V2, description) %>%
+  group_by(V2) %>%
+  summarise(count=n())
+  
+GO_pfam_molecul <-
+GO_terms_pfam %>%
+  filter(GO != ".") %>%
+  filter(GO_class == "molecular_function") %>%
+  select(V2, description) %>%
+  group_by(description) %>%
+  summarise(count=n())
+
+```
+
+##BLAST-X
+```{r}
+
+
+#Uniikkien trinotate-geenien ja transkriptien määrä.
+attach(Trinotate)
+v1<-V1
+v2<-V2
+geneid_unique <- unique(v1) 
+transcriptid_unique <- unique(v2)
+
+#SProt top hits Blast-X
+
+Blastx <- 
+  Trinotate %>% 
+  as_tibble() %>% 
+  select(V2, V3) %>%
+  filter(V3 != ".") %>%
+  separate_rows(V3, sep = "\`") %>%
+  separate(V3, into = c("sseq", "sseq2", "position", "pident", "e-value", "recName", "evPath"), sep = "\\^", remove = F)
+
+blastx_unique_genes <-
+  Blastx %>%
+  select(V2, sseq) %>%
+  group_by(sseq) %>%
+  summarise(count=n())
+
+blastx_unique_genes_species <-
+  Blastx %>%
+  select(V2, sseq) %>%
+  separate(sseq, into = c("sseq", "species"), sep = "_", remove = F) %>%
+  group_by(species) %>%
+  summarise(count=n())
+
+blastx_filtered <- filter(Trinotate, V3 != ".")
+#Blastx osumista valittu parhaimmat ja niitä on 123 978 eli 84,05 % kaikista transkripteista, joille löytyi osuma
+blastx_char <- as.character(blastx_filtered$V3)
+blastx_split <- strsplit(blastx_char,"^", fixed = TRUE)
+gene_species <- lapply(blastx_split,`[[`,1)
+unique_gene_species <- unique(gene_species)
+#uniikkeja geenejä löytyi 22 126 --> annotaatio ei superhyvä?
+gene_species_char <-as.character(unlist(gene_species))
+gene_species_blastx <- strsplit(gene_species_char,"_",fixed = TRUE)
+unique_species_blastx <- unique(lapply(gene_species_blastx, `[[`, 2))
+#top blastx hits are towards 1673 species
+species_blastx <- lapply(gene_species_blastx, `[[`, 2)
+species_blastx_char <-as.data.frame(unlist(species_blastx))
+class(species_blastx_char)
+unique_species_balstx <- unique(species_blastx_char)
+species_counts <- as.data.frame(table(species_blastx_char))
+
+
+#Näistä tuloksista löytyi mm. 297 tulosta P. sylvestris. Ei kovin montaa. Pinus taedalle 705. Pinus thunbergianalle 237 osumaa. Yhteensä 17 pinus suvun lajille löytyi 1568 osumaa. 
+#Ihmistä vastaan löytyi 2433 vastavuutta. --> Paremmin annotoitu, genomi saatavilla. Proteiinitietokannoissa vähän geenejä puille, kasveista eniten Arabidopsikselle, 68986 osumaa
+#Havupuille yhteensä 2831 osumaa (blastx and blastp)
+#Tuloksista 103682 kuuluu siemenkasveihin
+library(ggplot2)
+ggplot(species_counts, aes(x= species_blastx_char, y = Freq)) +
+  geom_histogram(binwidth = 5,stat = "identity") + theme_gray() + xlab("Genus")+
+  ylab("Frequence")
+#Filter all that has expression under 100 --> parempi 
+
+species_patth <- lapply(blastx_split,`[[`, 7)
+species_path_char <-as.character(unlist(species_patth))
+
+path_separated <- strsplit(species_path_char,";",fixed = TRUE)
+path_separated[[10]]
+siemenkasvit <- lapply(path_separated, `[`, 6)
+ensimmäinen <- lapply(path_separated, `[`, 1)
+unique(ensimmäinen)
+length(which(ensimmäinen == "Eukaryota"))
+length(which(ensimmäinen == "Viruses"))
+length(which(ensimmäinen == "Bacteria"))
+length(which(ensimmäinen == "Archaea"))
+class(path_separated)
+
+class(species_patth)
+class(taxonomy)
+taxonomy <- data.frame(matrix(unlist(species_patth), nrow=length(species_patth), byrow=T))
+tax_sep <- taxonomy %>% separate(matrix.unlist.species_patth...nrow...length.species_patth...byrow...T., c("1", "2","3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20")) 
+eukaryota <- filter(species_patth, )
+as.character(unlist(species_path_char))
+eukaryota <- sapply(path_separated, function(x) x == "Eukaryota", simplify = F)
+
+
+siemenkasvit_datframe <- as.data.frame(unlist(siemenkasvit))
+siemenkasvit_counts <- as.data.frame(table(siemenkasvit_datframe))
+#spermatophytan määrä
+
+toinen <- lapply(path_separated, `[`, 2)
+unique(toinen) -> toinen_unique
+
+toiseksiviimeinen <- lapply(path_separated, function(x) x[length(x) -1])
+toiseksiviimeinen_unique <- unique(toiseksiviimeinen)
+toiseksiviimeinen_dataframe <- as.data.frame(unlist(toiseksiviimeinen))
+toiseksiviimeinen_counts <- as.data.frame(table(toiseksiviimeinen_dataframe))
+
+ggplot(toiseksiviimeinen_counts, aes(x= toiseksiviimeinen_dataframe, y = Freq)) +
+  geom_histogram(binwidth = 5,stat = "identity") + theme_gray() + xlab("Suku")+
+  ylab("Frekvenssi")
+```
+
+##Proteiinit
+```{r proteiinit}
+#Predicted proteins
+proteins <- 
+  Trinotate %>% 
+  as_tibble() %>% 
+  select(V2, V5) %>%
+  filter(V5 != ".") 
+
+proteins_coord <- 
+  Trinotate %>% 
+  as_tibble() %>% 
+  select(V2, V6) %>%
+  filter(V6 != ".")
+
+protein_filtered<- filter(Trinotate, V5 != ".")
+unique_proteins <- unique(protein_filtered)
+#Trinotate/transdecoder predicted 76124 different proteins based on open reading frame analysis
+
+#Strand of proteins
+protein_strand_filtered <- filter(Trinotate, V6 != ".")
+prot_strand_char <- as.character(protein_strand_filtered$V6)
+prot_strand_split <- strsplit(prot_strand_char,"[", fixed = TRUE)
+prot_strand_split[[4]]
+prot_strand<-lapply(prot_strand_split,`[[`,2)
+class(prot_strand)
+prot_strand_char_2 <-as.character(unlist(prot_strand))
+prot_strand_split_2 <- strsplit(prot_strand_char_2,"]", fixed = TRUE)
+prot_strand_split_2[[4]]
+minus_strand <- prot_strand_split_2 == "-"
+sum(minus_strand)
+plus_strand <- prot_strand_split_2 == "+"
+sum(plus_strand)
+#Ennustetuista proteiineista 64710 on + -juosteessa ja 11414 - -juosteessa
+
+#pfam
+##The Pfam database is a large collection of protein families, each represented by multiple sequence alignments and hidden Markov models
+##Tries to find protein domains that tell about the function
+##Higher-level grouping, called clans
+```
+
+##Pfam
+```{r pfam}
+
+pfam <- 
+  Trinotate %>% 
+  as_tibble() %>% 
+  select(V2, V8) %>%
+  filter(V8 != ".") %>%
+  separate_rows(V8, sep = "\`") %>% 
+  separate(V8, into = c("ID", "name", "description", "Position", "e-value"), sep = "\\^", remove = F) %>% 
+  distinct()
+
+pfam_unique <-
+  pfam %>%
+  select(V2, ID) %>%
+  group_by(ID) %>%
+  summarise(count=n())
+
+
+#unique pfam hits 48781
+#48 781, (64,1 %) proteiiniakoodaavalle transkriptille tulos. Yhteensä erilaisia annotaatioita 138 633 --> suurin osa samoille transkripteille.
+#uniikkeja 4436  --> aika vähän. 
+
+```
+
+##SignalP
+```{r signalP}
+#signalP 
+#The SignalP 5.0 server predicts the presence of signal peptides and the location of their cleavage sites in proteins from Archaea, Gram-positive Bacteria, Gram-negative Bacteria and Eukarya.
+
+signalP <- 
+  Trinotate %>% 
+  as_tibble() %>% 
+  select(V2, V9) %>%
+  filter(V9 != ".") %>%
+  separate(V9, into = c("sigP", "the_rest"), sep = ":", remove = F) %>% 
+  separate(the_rest, into = c("start", "end", "D_score", "Random"), sep = "\\^", remove = F) %>%
+  distinct()
+
+  
+sigP_unique <-
+  signalP %>%
+  select(V2, V9) %>%
+  group_by(V9) %>%
+  summarise(count=n())  
+  
+#2809 unique hits from signalP 
+#2809/76124 = 3,69 % kaikista proteiineista
+#kaikki tulokset YES --> kaikki havaitut osumat ovat todennäköisesti signaalipeptidejä.
+```
+
+##TMHMM
+```{r tmhmm}
+#TMHMM
+#Tries to find transmembrane helices from protein structures
+
+TMHMM<- 
+  Trinotate %>% 
+  as_tibble() %>% 
+  select(V2, V10) %>%
+  filter(V10 != ".") %>%
+  separate(V10, into = c("ExpAA", "PredHel", "Topology"), sep = "\\^", remove = F) %>%
+  separate(ExpAA, into = c("ExpAA", "Bases"), sep = "\\=", remove = F) %>%
+  separate(PredHel, into = c("PredHel", "PredHel_Nro"), sep = "\\=", remove = F) 
+
+TMHMM_helix <-
+  TMHMM %>%
+  select(V2, PredHel_Nro) %>%
+  group_by(PredHel_Nro) %>%
+  summarise(count=n())  
+
+  
+tmhmm_filtered <- filter(Trinotate, V10 != ".")
+prot_filtered <- filter(Trinotate, V5 != ".")
+#10856 hits
+tmhmm_filtered_signal <- filter(tmhmm_filtered, V9 != ".")
+#Näistä osumista sekä tmhmm ja signalP molemmat ennustavat 1173 osumaa, jolloin on todennäköistä, että ne ovat signaalipeptidejä
+signalP_filtered_tmhmm <- filter(signalP_filtered, V10 != ".")
+#Sama luku jos käyttää signalP dataa.
+tmhmm_character <- as.character(tmhmm_filtered$V10)
+tmhmm_split <- strsplit(tmhmm_character,"^", fixed = TRUE)
+tmhmm_split[[4]]
+tmhmm_exp_helices<-lapply(tmhmm_split,`[[`,2)
+tmhmm_exp_helices_char <- as.character(unlist(tmhmm_exp_helices))
+tmhmm_exp_helices_no <- strsplit(tmhmm_exp_helices_char, "=", fixed=TRUE)
+tmhmm_exp_helices_no<-lapply(tmhmm_exp_helices_no,`[[`,2)
+tmhmm_helices <- as.numeric(as.character(unlist(tmhmm_exp_helices_no)))
+max(tmhmm_helices)
+min(tmhmm_helices)
+mean(tmhmm_helices)
+tmhmm_helices >2 -> suurempiakuin2
+sum(suurempiakuin2)
+tmhmm_helices >5 -> suurempiakuin5
+sum(suurempiakuin5)
+tmhmm_helices >10 -> suurempiakuin10
+sum(suurempiakuin10)
+tmhmm_helices >20 -> suurempiakuin20
+sum(suurempiakuin20)
+median(tmhmm_helices)
+mean(tmhmm_helices)
+sd(tmhmm_helices)
+#maksimissaan 29 heliksiä ja keskimäärin 2.77 kaikista tuloksista
+#293 osumaa joissa enemmän kuin 10 heliksiä ja 4 joissa enemmäin kuin 20 ja 1578 joissa enemmän kuin 5 ja 3596 joista enemmän kuin 2 heliksiä.
+#expectedAA määrän ehkä voisi laskea
+tmhmm_expAA<-lapply(tmhmm_split,`[[`,1)
+tmhmm_expAA_char <- as.character(unlist(tmhmm_expAA))
+tmhmm_expAA_no <- strsplit(tmhmm_expAA_char, "=", fixed=TRUE)
+tmhmm_expAA_no<-lapply(tmhmm_expAA_no,`[[`,2)
+tmhmm_expAA <- as.numeric(as.character(unlist(tmhmm_expAA_no)))
+max(tmhmm_expAA)
+min(tmhmm_expAA)
+median(tmhmm_expAA)
+mean(tmhmm_expAA)
+sd(tmhmm_expAA)
+
+```
+
+##RNAmmer
+```{r RNAmmer}
+#RNAmmer
+##Annotation of Ribosomal RNA
+
+RNAmmer <- 
+  Trinotate %>% 
+  as_tibble() %>% 
+  select(V2, V4) %>%
+  filter(V4 != ".") %>%
+  separate_rows(V4, sep = "\`") %>% 
+  separate(V4, into = c("rRNA", "position"), sep = "\\^", remove = F) %>% 
+  distinct()
+
+RNAmmer_transkript <-
+  RNAmmer %>%
+  select(V2, V4) %>%
+  group_by(V2) %>%
+  summarise(count=n())
+
+RNAmmer_rRNA <-
+  RNAmmer %>%
+  select(V2, rRNA) %>%
+  group_by(rRNA) %>%
+  summarise(count=n())
+
+
+#tuloksista 132 ribosomaalista RNA:ta, joista uniikkeja on 124
+#5.8S RNA 15 hits
+#28S RNA 38 hits
+#18S RNA 79 hit 
+#28S osumat ovat peräisin vierekkäisistä Trinity-klustereista, joissa kaksi kauempaa klusteria
+#5.8S osumat peräisin viidestä erilaisesta klusterista, joissa lähekkäin olevia 
+#18S osumat kolmesta erillisestä klusterista, joista suurin osa yhdestä isosta ja 4 osumaa kolmesta muusta.
+
+RNAmmer_filtered_blast <- filter(RNAmmer_filtered, V3 != ".")
+#14 näistä blastautuu ja ne kaikki blastautuvat Saccharomycetesiin tai muihin hiivalajeihin --> kontaminaatio?
+#kaikista filtteroiduista rRNA:ista kahdeksalla on tunnettu go-termi ja näistä kaikki liittyvät mitokondrioihin
+
+
+```
+
+
+
+## eggNOG
+```{r eggnog}
+library(dplyr)
+Trinotate <- read.delim("~/Desktop/Gradu/190721_trinotate/Trinotate.csv", header=FALSE, comment.char="#")
+
+eggNOG <- 
+  Trinotate %>% 
+  as_tibble() %>% 
+  select(V2, V11) %>%
+  separate_rows(V11, sep = "\`") %>% 
+  separate(V11, into = c("id", "description"), sep = "\\^", remove = F) %>% 
+  distinct()
+
+eggnog_filt <- 
+  eggNOG %>%
+  filter(id != ".") %>%
+  select(V2) %>%
+  group_by(V2) %>%
+  summarise(count=n())
+
+eggnog_description  <-
+eggNOG %>%
+  filter(id != ".") %>%
+  select(V2, id) %>%
+  group_by(id) %>%
+  summarise(count=n())
+
+
+
+```
+
+##KEGG
+```{r KEGG}
+KEGG <- 
+  Trinotate %>% 
+  as_tibble() %>% 
+  select(V2, V12) %>%
+  separate_rows(V12, sep = "\`") %>% 
+  separate(V12, into = c("db", "species", "id"), sep = "\\:", remove = F) %>% 
+  distinct()
+
+KEGG_filt <- 
+  KEGG %>%
+  filter(db != ".") %>%
+  select(V2) %>%
+  group_by(V2) %>%
+  summarise(count=n())
+
+KEGG_KO  <-
+  KEGG %>%
+  filter(db != ".") %>%
+  filter(db != "KEGG") %>%
+  select(V2, species) %>%
+  group_by(species) %>%
+  summarise(count=n())
+
+KEGG_KEGG_species  <-
+  KEGG %>%
+  filter(db != ".") %>%
+  filter(db == "KEGG") %>%
+  select(V2, species) %>%
+  group_by(species) %>%
+  summarise(count=n())
+
+KEGG_KEGG_id  <-
+  KEGG %>%
+  filter(db != ".") %>%
+  filter(db == "KEGG") %>%
+  select(V2, id) %>%
+  group_by(id) %>%
+  summarise(count=n())
+
+
+```
+
+
+##BLAST-P
+```{r BLAST-P}
+#SProt top hits Blast-P
+blastp_filtered <- filter(Trinotate, V7 != ".")
+#Blastp osumista valittu parhaimmat ja niitä on 51 418 eli 34,9 % kaikista transkripteista, joille löytyi osuma
+blastp_char <- as.character(blastp_filtered$V7)
+blastp_split <- strsplit(blastp_char,"^", fixed = TRUE)
+gene_species_p <- lapply(blastp_split,`[[`,1)
+#mitä tämä oikeasti meinaa?
+unique_gene_species_p <- unique(gene_species_p)
+#uniikkeja geenejä löytyi 12 589 --> annotaatio ei superhyvä?
+gene_species_char_p <-as.character(unlist(gene_species_p))
+gene_species_blastp <- strsplit(gene_species_char_p,"_",fixed = TRUE)
+class(gene_species_blastp)
+unique_species_blastp <- unique(lapply(gene_species_blastp, `[[`, 2))
+#top blastx hits are towards 774 species
+
+
+species_blastp <- lapply(gene_species_blastp, `[[`, 2)
+species_blastp_char <-as.data.frame(unlist(species_blastp))
+class(species_blastp_char)
+unique_species_balstp <- unique(species_blastp_char)
+species_counts_blastp <- as.data.frame(table(species_blastp_char))
+
+
+#Näistä tuloksista löytyi mm. 43 tulosta P. sylvestris. Ei kovin montaa. Pinus taedalle 233. Pinus thunbergianalle 71 osumaa. Yhteensä 9 pinus suvun lajille löytyi 407 osumaa. 
+#Ihmistä vastaan löytyi 1149 vastavuutta. --> Paremmin annotoitu, genomi saatavilla. Proteiinitietokannoissa vähän geenejä puille, kasveista eniten Arabidopsikselle, 33386 osumaa
+#Havupuille yhteensä 2831 osumaa (blastx and blastp)
+#Tuloksista  kuuluu siemenkasveihin
+library(ggplot2)
+ggplot(species_counts_blastp, aes(x= species_blastp_char, y = Freq)) +
+  geom_histogram(binwidth = 5,stat = "identity") + theme_gray() + xlab("Genus")+
+  ylab("Frequence")
+#Filter all that has expression under 100 --> parempi 
+
+species_patth_blastp <- lapply(blastp_split,`[[`, 7)
+species_path_char_blastp <-as.character(unlist(species_patth_blastp))
+
+path_separated_blastp <- strsplit(species_path_char_blastp,";",fixed = TRUE)
+path_separated_blastp[[1099]]
+siemenkasvit_blastp <- lapply(path_separated_blastp, `[`, 6)
+ensimmäinen_blastp <- lapply(path_separated_blastp, `[`, 1)
+unique(ensimmäinen_blastp)
+length(which(ensimmäinen_blastp == "Eukaryota"))
+#49906
+length(which(ensimmäinen_blastp == "Viruses"))
+#103
+length(which(ensimmäinen_blastp == "Bacteria"))
+#1306
+length(which(ensimmäinen_blastp == "Archaea"))
+#103
+class(path_separated_blastp)
+
+taxonomy_blastp <- data.frame(matrix(unlist(species_patth_blastp), nrow=length(species_patth_blastp), byrow=T))
+tax_sep_blastp <- taxonomy_blastp %>% separate(matrix.unlist.species_patth_blastp...nrow...length.species_patth_blastp..., c("1", "2","3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20")) 
+eukaryota_blastp <- filter(species_patth_blastp, )
+as.character(unlist(species_path_char_blastp))
+eukaryota_blastp <- sapply(path_separated_blastp, function(x) x == "Eukaryota", simplify = F)
+
+
+siemenkasvit_datframe_blastp <- as.data.frame(unlist(siemenkasvit_blastp))
+siemenkasvit_counts_blastp <- as.data.frame(table(siemenkasvit_datframe_blastp))
+#spermatophytan 43900
+
+toinen_blastp <- lapply(path_separated_blastp, `[`, 2)
+unique(toinen_blastp) -> toinen_unique_blastp
+
+toiseksiviimeinen_blastp <- lapply(path_separated_blastp, function(x) x[length(x) -1])
+toiseksiviimeinen_unique_blastp <- unique(toiseksiviimeinen_blastp)
+toiseksiviimeinen_dataframe_blastp <- as.data.frame(unlist(toiseksiviimeinen_blastp))
+toiseksiviimeinen_counts_blastp <- as.data.frame(table(toiseksiviimeinen_dataframe_blastp))
+
+ggplot(toiseksiviimeinen_counts_blastp, aes(x= toiseksiviimeinen_dataframe_blastp, y = Freq)) +
+  geom_histogram(binwidth = 5,stat = "identity") + theme_gray() + xlab("Suku")+
+  ylab("Frekvenssi")
+
+
+```
+
+
+##Annotaation tulokset
+```{r}
+tietokanta <- c("Trinity-transkriptit", "Trinity-geenit","Annotaatiota yhteensä", "RNAMMER","BLASTX", "TransDecoder","BLASTP", "Pfam","SignalP", "TmHMM","KEGG", "Eggnog", "GO-BLASTX", "GO-Pfam")
+arvot <- c(486815, 405580, 147498, 132, 123978, 76124, 51418, 48781, 2809, 10856, 94916, 91529, 88489, 15177)
+
+trinotate_data<-data.frame(tietokanta, arvot)
+trinotate_data$tietokanta <- factor(trinotate_data$tietokanta, levels = trinotate_data$tietokanta)
+
+library(ggplot2)
+ggplot(trinotate_data, aes(x= tietokanta, y = arvot)) +
+  geom_histogram(stat = "identity", position="dodge")  + theme_get()+ xlab("Tietokanta")+
+  ylab("Transkriptien määrä") 
+
+
+
+
+```
+
+
+##blastn taeda - tulosten analysointi
+```{r}
+taeda <- read.delim("~/Desktop/Gradu/blast_taeda/taeda_171106_output.file", header=FALSE)
+
+taeda_transcripts <- 
+  taeda %>% 
+  as_tibble() %>% 
+  select(V1, V2) %>%
+  group_by(V1) %>%
+  summarise(count=n())
+  
+taeda_mapping <- 
+  taeda %>% 
+  as_tibble() %>% 
+  select(V1, V2) %>%
+  group_by(V2) %>%
+  summarise(count=n())
+  
+mean(taeda$V4)
+median(taeda$V4)
+
+```
